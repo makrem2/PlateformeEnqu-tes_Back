@@ -14,7 +14,7 @@ module.exports = function (app) {
   });
 
   router.put(
-    "/:id",
+    "/updateUser/:id",
     [authJwt.verifyToken],
     controller.upload,
     controller.updateUser
@@ -47,7 +47,7 @@ module.exports = function (app) {
   router.put("/updateUser/:id", controller.updateUser);
 
   router.patch(
-    "/update-password/:id",
+    "/updateUserPassword/:id",
     [authJwt.verifyToken],
     controller.updateUserPassword
   );

@@ -4,6 +4,9 @@ const sendMail = require("../config/sendEmail");
 const { user } = db;
 const { Op } = require("sequelize");
 const crypto = require("crypto");
+
+
+// image Upload
 const multer = require("multer");
 const path = require("path");
 
@@ -61,6 +64,9 @@ exports.getAllUsers = async (req, res) => {
 
   try {
     const users = await user.findAll({
+      include:[{
+        model:db.role
+      }],
       limit: limit,
       offset: offset,
     });
@@ -203,7 +209,7 @@ exports.requestPasswordReset = async (req, res) => {
             <p>Vous avez demandé la réinitialisation de votre mot de passe. Veuillez utiliser le lien ci-dessous pour réinitialiser votre mot de passe :</p>
             <a href="${resetLink}" class="btn">Réinitialiser le mot de passe</a>
             <p>Si vous ne vous êtes pas inscrit pour ce compte, veuillez ignorer cet e-mail.</p>
-            <p>Bonnes salutations,<br>Ecommerce</p>
+            <p>Bonnes salutations,<br>National Statistics Institute</p>
           </div>
         </body>
       </html>
@@ -282,6 +288,9 @@ exports.updateUserPassword = async (req, res) => {
     return res.status(500).json({ message: "Server error." });
   }
 };
+
+
+
 storage = multer.diskStorage({
   destination: (req, file, cb) => {
     cb(null, "Images");
@@ -290,6 +299,7 @@ storage = multer.diskStorage({
     cb(null, Date.now() + path.extname(file.originalname));
   },
 });
+
 exports.upload = multer({
   storage: storage,
   limits: { fileSize: "1000000000" },

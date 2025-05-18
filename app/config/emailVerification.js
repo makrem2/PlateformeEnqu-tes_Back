@@ -21,7 +21,7 @@ exports.emailVerification = (username, verificationLink, verificationCode) => {
             <div class="verification-code">${verificationCode}</div>
   
             <p>Si vous ne vous êtes pas inscrit à ce compte, veuillez ignorer cet e-mail.</p>
-            <p>Bonnes salutations,<br>Ecommerce</p>
+            <p>Bonnes salutations,<br>National Statistics Institute</p>
           </div>
         </body>
       </html>`;

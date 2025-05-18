@@ -205,6 +205,7 @@ exports.signout = async (req, res) => {
       return res.status(401).json({ message: "Token déjà sur liste noire" });
     }
   } catch (error) {
+    console.log(error);
     return res.status(500).json({
       message:
         "Une erreur s'est produite lors du traitement de la demande de déconnexion",
