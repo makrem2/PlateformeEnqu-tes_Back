@@ -17,6 +17,8 @@ module.exports = function (app) {
   router.put('/updateentreprise/:id',controller.UpdateEntreprise);
   router.get('/getOneEntreprise/:id',controller.getOneEntreprise);
 
+  router.get('/GetAllEntreprise',controller.GetAllEntreprise);
+
   app.use("/api/entreprise", router);
 
   };

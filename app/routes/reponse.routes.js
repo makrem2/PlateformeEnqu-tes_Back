@@ -13,11 +13,17 @@ module.exports = function (app) {
     next();
   });
 
-  router.post("/createReponse", reponseController.createReponse);
-  router.get("/getAllReponses", reponseController.getAllReponses);
-  router.get("/getReponseById/:id", reponseController.getReponseById);
-  router.put("/updateReponse/:id", reponseController.updateReponse);
-  router.delete("/deleteReponse/:id", reponseController.deleteReponse);
+// Créer des réponses (soumission d’un formulaire)
+router.post('/createReponses', reponseController.createReponses);
+
+// Obtenir toutes les réponses d’une entreprise pour une enquête
+router.get('/getReponsesByEnqueteAndEntreprise/:enquete_id/:entreprise_id', reponseController.getReponsesByEnqueteAndEntreprise);
+
+// Mettre à jour une réponse
+router.put('/updateReponse/:id', reponseController.updateReponse);
+
+// Supprimer une réponse
+router.delete('/deleteReponse/:id', reponseController.deleteReponse);
 
   app.use("/api/reponses", router);
 };

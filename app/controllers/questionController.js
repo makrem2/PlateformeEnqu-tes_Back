@@ -5,16 +5,20 @@ const { Op } = require("sequelize");
 // Créer une nouvelle question
 exports.createQuestion = async (req, res) => {
   try {
-    const { texte, type, options,enquete_id } = req.body;
+    const { texte, type, options, enquete_id } = req.body;
 
-    const newQuestion = await Question.create({ texte, type, options,enquete_id });
+    const newQuestion = await Question.create({
+      texte,
+      type,
+      options,
+      enquete_id,
+    });
     return res.status(201).json(newQuestion);
   } catch (error) {
     console.error("Erreur lors de la création de la question:", error);
     return res.status(500).json({ message: "Erreur serveur" });
   }
 };
-
 // Récupérer toutes les questions (avec pagination)
 exports.getAllQuestions = async (req, res) => {
   try {
@@ -39,7 +43,6 @@ exports.getAllQuestions = async (req, res) => {
     return res.status(500).json({ message: "Erreur serveur" });
   }
 };
-
 // Récupérer une question par ID
 exports.getQuestionById = async (req, res) => {
   try {
@@ -55,18 +58,17 @@ exports.getQuestionById = async (req, res) => {
     return res.status(500).json({ message: "Erreur serveur" });
   }
 };
-
 // Mettre à jour une question
 exports.updateQuestion = async (req, res) => {
   try {
-    const { texte, type, options,enquete_id } = req.body;
+    const { texte, type, options, enquete_id } = req.body;
 
     const question = await Question.findByPk(req.params.id);
     if (!question) {
       return res.status(404).json({ message: "Question non trouvée" });
     }
 
-    await question.update({ texte, type, options,enquete_id });
+    await question.update({ texte, type, options, enquete_id });
 
     return res.status(200).json(question);
   } catch (error) {
@@ -74,7 +76,6 @@ exports.updateQuestion = async (req, res) => {
     return res.status(500).json({ message: "Erreur serveur" });
   }
 };
-
 // Supprimer une question
 exports.deleteQuestion = async (req, res) => {
   try {
@@ -88,6 +89,26 @@ exports.deleteQuestion = async (req, res) => {
     return res.status(200).json({ message: "Question supprimée avec succès" });
   } catch (error) {
     console.error("Erreur lors de la suppression:", error);
+    return res.status(500).json({ message: "Erreur serveur" });
+  }
+};
+
+//getQuestionByEnquete_id
+exports.getQuestionByEnquete_id = async (req, res) => {
+  try {
+    const enquete_id = req.params.id;
+
+    if (!enquete_id) {
+      return res.status(400).send({ message: "enquete_id requis." });
+    }
+
+    const question = await Question.findAll({
+      where: {
+        enquete_id,
+      },
+    });
+    return res.status(200).json(question);
+  } catch (error) {
     return res.status(500).json({ message: "Erreur serveur" });
   }
 };

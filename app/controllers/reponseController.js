@@ -1,101 +1,107 @@
-const db = require("../models");
-const Reponse = db.reponse;
+const { Reponse } = require("../models");
 const { Op } = require("sequelize");
 
-// Créer une réponse (initiale ou soumise)
-exports.createReponse = async (req, res) => {
-  try {
-    const { valeur, dateSoumission, statut, question_id, entreprise_id , enquete_id  } =
-      req.body;
+exports.createReponses = async (req, res) => {
+  const { entreprise_id, enquete_id, reponses } = req.body;
 
-    const nouvelleReponse = await Reponse.create({
-      valeur,
-      dateSoumission,
-      statut: statut || "EN_ATTENTE",
-      question_id,
-      entreprise_id,
-      enquete_id
+  if (!entreprise_id || !enquete_id || !Array.isArray(reponses)) {
+    return res
+      .status(400)
+      .json({ message: "Champs requis manquants ou invalides." });
+  }
+
+  try {
+    // Vérifier si l'entreprise a déjà soumis des réponses pour cette enquête
+    const existingReponses = await Reponse.findOne({
+      where: { entreprise_id, enquete_id },
     });
 
-    return res.status(201).json(nouvelleReponse);
+    if (existingReponses) {
+      return res.status(409).json({
+        message:
+          "Cette entreprise a déjà soumis des réponses pour cette enquête.",
+      });
+    }
+
+    // Créer les réponses
+    const createdReponses = await Promise.all(
+      reponses.map((r) =>
+        Reponse.create({
+          entreprise_id,
+          enquete_id,
+          question_id: r.question_id,
+          valeur: r.valeur,
+          dateSoumission: new Date(),
+          statut: "EN_ATTENTE",
+        })
+      )
+    );
+
+    return res.status(201).json({
+      message: "Réponses enregistrées avec succès.",
+      data: createdReponses,
+    });
   } catch (error) {
-    console.error("Erreur lors de la création de la réponse :", error);
-    return res.status(500).json({ message: "Erreur serveur" });
+    console.error("Erreur lors de la création des réponses :", error);
+    return res.status(500).json({ message: "Erreur serveur." });
   }
 };
 
-// Récupérer toutes les réponses (avec pagination)
-exports.getAllReponses = async (req, res) => {
+exports.getReponsesByEnqueteAndEntreprise = async (req, res) => {
+  const { enquete_id, entreprise_id } = req.params;
+
   try {
-    const page = parseInt(req.query.page) || 1;
-    const limit = parseInt(req.query.limit) || 10;
-    const offset = (page - 1) * limit;
-
-    const { count, rows } = await Reponse.findAndCountAll({
-      limit,
-      offset,
-      order: [["createdAt", "DESC"]],
+    const reponses = await Reponse.findAll({
+      where: {
+        enquete_id,
+        entreprise_id,
+      },
     });
 
-    return res.status(200).json({
-      totalItems: count,
-      totalPages: Math.ceil(count / limit),
-      currentPage: page,
-      reponses: rows,
-    });
+    return res.status(200).json(reponses);
   } catch (error) {
     console.error("Erreur lors de la récupération des réponses :", error);
-    return res.status(500).json({ message: "Erreur serveur" });
+    return res.status(500).json({ message: "Erreur serveur." });
   }
 };
 
-// Récupérer une réponse par ID
-exports.getReponseById = async (req, res) => {
-  try {
-    const reponse = await Reponse.findByPk(req.params.id);
-
-    if (!reponse) {
-      return res.status(404).json({ message: "Réponse non trouvée" });
-    }
-
-    return res.status(200).json(reponse);
-  } catch (error) {
-    console.error("Erreur lors de la récupération de la réponse :", error);
-    return res.status(500).json({ message: "Erreur serveur" });
-  }
-};
-
-// Mettre à jour une réponse
-exports.updateReponse = async (req, res) => {
-  try {
-    const { valeur, dateSoumission, statut } = req.body;
-
-    const reponse = await Reponse.findByPk(req.params.id);
-    if (!reponse) {
-      return res.status(404).json({ message: "Réponse non trouvée" });
-    }
-
-    await reponse.update({ valeur, dateSoumission, statut });
-
-    return res.status(200).json(reponse);
-  } catch (error) {
-    console.error("Erreur lors de la mise à jour de la réponse :", error);
-    return res.status(500).json({ message: "Erreur serveur" });
-  }
-};
-
-// Supprimer une réponse
 exports.deleteReponse = async (req, res) => {
+  const { id } = req.params;
+
   try {
-    const reponse = await Reponse.findByPk(req.params.id);
-    if (!reponse) {
-      return res.status(404).json({ message: "Réponse non trouvée" });
+    const deleted = await Reponse.destroy({ where: { reponse_id: id } });
+
+    if (!deleted) {
+      return res.status(404).json({ message: "Réponse non trouvée." });
     }
 
-    await reponse.destroy();
-    return res.status(200).json({ message: "Réponse supprimée avec succès" });
+    return res.status(200).json({ message: "Réponse supprimée avec succès." });
   } catch (error) {
-    console.error("Erreur lors de la suppression de la réponse :", error);
-    return res.status(500).json({ message: "Erreur serveur" });
+    console.error("Erreur suppression réponse :", error);
+    return res.status(500).json({ message: "Erreur serveur." });
+  }
+};
+
+exports.updateReponse = async (req, res) => {
+  const { id } = req.params;
+  const { valeur, statut } = req.body;
+
+  try {
+    const reponse = await Reponse.findByPk(id);
+    if (!reponse) {
+      return res.status(404).json({ message: "Réponse non trouvée." });
+    }
+
+    reponse.valeur = valeur || reponse.valeur;
+    reponse.statut = statut || reponse.statut;
+
+    await reponse.save();
+
+    return res
+      .status(200)
+      .json({ message: "Réponse mise à jour.", data: reponse });
+  } catch (error) {
+    console.error("Erreur update réponse :", error);
+    return res.status(500).json({ message: "Erreur serveur." });
   }
 };

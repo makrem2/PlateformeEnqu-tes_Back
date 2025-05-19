@@ -22,7 +22,6 @@ const setupEnqueteJobs = () => {
     }
   });
 };
-
 const sendEnqueteReminders = async () => {
   try {
     const now = new Date();
@@ -63,7 +62,6 @@ const sendEnqueteReminders = async () => {
     console.error("[CRON] Erreur dans sendEnqueteReminders :", error.message);
   }
 };
-
 const closeExpiredEnquetes = async () => {
   try {
     const now = new Date();
@@ -103,5 +101,4 @@ const closeExpiredEnquetes = async () => {
     console.error("[CRON] Erreur dans closeExpiredEnquetes :", error.message);
   }
 };
-
 module.exports = setupEnqueteJobs;

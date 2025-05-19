@@ -19,5 +19,7 @@ module.exports = function (app) {
   router.put("/updateQuestion/:id", questionController.updateQuestion);
   router.delete("/deleteQuestion/:id", questionController.deleteQuestion);
 
+
+  router.get('/getQuestionByEnquete_id/:id',questionController.getQuestionByEnquete_id);
   app.use("/api/questions", router);
 };

@@ -21,6 +21,9 @@ module.exports = function (app) {
 
   router.delete("/deleteEnquete/:id",enqueteController.deleteEnquete);
 
+
+  router.patch('/changestatusToEN_COURS/:id',enqueteController.changestatusToEN_COURS)
+
   // Assigner une enquête à des entreprises
   router.post("/assignEnqueteToEntreprises/:id", enqueteController.assignEnqueteToEntreprises);
 

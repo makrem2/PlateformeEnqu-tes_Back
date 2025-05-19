@@ -2,6 +2,11 @@ const db = require("../models");
 const Enquete = db.enquete;
 const Entreprise = db.entreprise;
 
+const {
+  sendSurveyNotificationEmail,
+} = require("../config/sendSurveyNotificationEmail");
+const sendMail = require("../config/sendEmail");
+
 // Créer une nouvelle enquête
 exports.createEnquete = async (req, res) => {
   try {
@@ -65,21 +70,64 @@ exports.updateEnquete = async (req, res) => {
 // Assigner une enquête à plusieurs entreprises
 exports.assignEnqueteToEntreprises = async (req, res) => {
   try {
-    const { id } = req.params; // enquete_id
-    const { entrepriseIds } = req.body; // tableau d'ID
+    const { id } = req.params;
+    const { entrepriseIds } = req.body;
+
+    if (!Array.isArray(entrepriseIds) || entrepriseIds.length === 0) {
+      return res
+        .status(400)
+        .json({ message: "Liste des entreprises invalide" });
+    }
 
     const enquete = await Enquete.findByPk(id);
-    if (!enquete)
+    if (!enquete) {
       return res.status(404).json({ message: "Enquête introuvable" });
+    }
+
+    if (["EN_ATTENTE", "CLOTUREE"].includes(enquete.statut)) {
+      return res.status(400).json({
+        message:
+          "Impossible d'assigner cette enquête à d'autres entreprises (statut en attente ou clôturée)",
+      });
+    }
 
     const entreprises = await Entreprise.findAll({
-      where: { entreprise_id: entrepriseIds },
+      where: { id: entrepriseIds },
+      include: [{ model: db.user, attributes: ["email"] }],
     });
 
-    await enquete.addEntreprises(entreprises); // relation many-to-many
+    if (entreprises.length === 0) {
+      return res.status(404).json({ message: "Aucune entreprise trouvée" });
+    }
 
-    res.status(200).json({ message: "Enquête assignée aux entreprises" });
+    await enquete.addEntreprises(entreprises);
+
+
+    const deadlineFormatted = new Date(enquete.dateFin).toLocaleDateString("fr-FR");
+
+    // 🔔 Envoi des emails
+    for (const entreprise of entreprises) {
+      console.log(entreprise.user?.email);
+      if (entreprise.user?.email) {
+        const emailHTML = sendSurveyNotificationEmail(
+          entreprise.nom,
+          enquete.titre,
+          deadlineFormatted,
+          `http://localhost:4200/entreprise/enquetes-re%C3%A7ues?id=${enquete.enquete_id }`
+        );
+        await sendMail(
+          entreprise.user.email,
+          `Nouvelle enquête : ${enquete.titre}`,
+          emailHTML
+        );
+      }
+    }
+
+    res.status(200).json({
+      message: "Enquête assignée et notifications envoyées avec succès",
+    });
   } catch (error) {
+    console.error("Erreur assignation enquête :", error);
     res.status(500).json({ message: "Erreur serveur", error: error.message });
   }
 };
@@ -109,7 +157,6 @@ exports.clotureEnquetesAutomatique = async () => {
   }
 };
 
-
 exports.deleteEnquete = async (req, res) => {
   try {
     const id = req.params.id;
@@ -123,6 +170,28 @@ exports.deleteEnquete = async (req, res) => {
 
     await enquete.destroy();
     res.send({ message: "Enquete supprimé avec succès." });
+  } catch (error) {
+    res.status(500).send({ message: error.message });
+  }
+};
+
+exports.changestatusToEN_COURS = async (req, res) => {
+  try {
+    const id = req.params.id;
+
+    if (!id) {
+      return res.status(400).send({ message: "ID requis." });
+    }
+
+    const updated = await Enquete.update(
+      { statut: "EN_COURS" },
+      { where: { enquete_id: id } }
+    );
+
+    if (updated[0] === 0)
+      return res.status(404).json({ message: "Enquête introuvable" });
+
+    res.status(200).json({ message: "Enquête Status Changed to EN_COURS" });
   } catch (error) {
     res.status(500).send({ message: error.message });
   }
