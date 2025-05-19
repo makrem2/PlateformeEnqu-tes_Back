@@ -1,99 +1,129 @@
 const db = require("../models");
-const { enquete, entreprise, user } = db;
-const { Op } = require("sequelize");
-const sendMail = require("../config/SendEmail");
+const Enquete = db.enquete;
+const Entreprise = db.entreprise;
 
+// Créer une nouvelle enquête
 exports.createEnquete = async (req, res) => {
   try {
-    const { titre, description, date_limite, entrepriseIds } = req.body;
+    const { titre, description, type, dateDebut, dateFin } = req.body;
 
-    // Vérification de base
-    if (!titre || !description || !date_limite || !entrepriseIds?.length) {
-      return res.status(400).json({ message: "Tous les champs sont requis." });
-    }
-
-    // Création de l’enquête
-    const nouvelleEnquete = await enquete.create({
+    await Enquete.create({
       titre,
       description,
-      date_limite,
-      statut: "active",
+      type,
+      dateDebut,
+      dateFin,
     });
 
-    // Lier les entreprises sélectionnées
-    await nouvelleEnquete.setEntreprises(entrepriseIds);
-
-    // Récupérer les emails pour notification immédiate
-    const entreprisesCibles = await entreprise.findAll({
-      where: { id: { [Op.in]: entrepriseIds } },
-      include: [{ model: user, attributes: ["email", "username"] }],
-    });
-
-    // Envoi des mails
-    for (const e of entreprisesCibles) {
-      if (e.user?.email) {
-        const html = `
-          <p>Bonjour ${e.user.username},</p>
-          <p>Une nouvelle enquête vous a été envoyée : <strong>${titre}</strong>.</p>
-          <p>Merci de répondre avant le <strong>${new Date(date_limite).toLocaleDateString()}</strong>.</p>
-          <p>Cordialement,<br>L'équipe</p>
-        `;
-        await sendMail(e.user.email, `📊 Nouvelle enquête : ${titre}`, html);
-      }
-    }
-
-    return res.status(201).json({
-      message: "Enquête créée et notifications envoyées.",
-      enquete: nouvelleEnquete,
-    });
+    res.status(201).json({ message: "Enquête créée" });
   } catch (error) {
-    console.error("Erreur création enquête:", error.message);
-    return res.status(500).json({ message: "Erreur serveur." });
+    res.status(500).json({ message: "Erreur serveur", error: error.message });
   }
 };
-
+// Lister toutes les enquêtes
 exports.getAllEnquetes = async (req, res) => {
   try {
-    const enquetes = await enquete.findAll({
-      include: [
-        {
-          model: entreprise,
-          as: "entreprises",
-          through: { attributes: [] },
-          include: [{ model: user, attributes: ["email", "username"] }],
-        },
-      ],
-      order: [["createdAt", "DESC"]],
-    });
-
-    return res.status(200).json(enquetes);
+    const enquetes = await Enquete.findAll();
+    res.status(200).json(enquetes);
   } catch (error) {
-    console.error("Erreur récupération enquêtes:", error.message);
-    return res.status(500).json({ message: "Erreur serveur." });
+    res.status(500).json({ message: "Erreur serveur", error: error.message });
   }
 };
-
+// Récupérer une enquête par ID
 exports.getEnqueteById = async (req, res) => {
   try {
     const { id } = req.params;
-    const enqueteFound = await enquete.findByPk(id, {
-      include: [
-        {
-          model: entreprise,
-          as: "entreprises",
-          through: { attributes: [] },
-          include: [{ model: user, attributes: ["email", "username"] }],
-        },
-      ],
+    const enquete = await Enquete.findByPk(id);
+
+    if (!enquete)
+      return res.status(404).json({ message: "Enquête introuvable" });
+
+    res.status(200).json(enquete);
+  } catch (error) {
+    res.status(500).json({ message: "Erreur serveur", error: error.message });
+  }
+};
+// Mettre à jour une enquête
+exports.updateEnquete = async (req, res) => {
+  try {
+    const { id } = req.params;
+    const { titre, description, type, dateDebut, dateFin, statut } = req.body;
+
+    const updated = await Enquete.update(
+      { titre, description, type, dateDebut, dateFin, statut },
+      { where: { enquete_id: id } }
+    );
+
+    if (updated[0] === 0)
+      return res.status(404).json({ message: "Enquête introuvable" });
+
+    res.status(200).json({ message: "Enquête mise à jour" });
+  } catch (error) {
+    res.status(500).json({ message: "Erreur serveur", error: error.message });
+  }
+};
+// Assigner une enquête à plusieurs entreprises
+exports.assignEnqueteToEntreprises = async (req, res) => {
+  try {
+    const { id } = req.params; // enquete_id
+    const { entrepriseIds } = req.body; // tableau d'ID
+
+    const enquete = await Enquete.findByPk(id);
+    if (!enquete)
+      return res.status(404).json({ message: "Enquête introuvable" });
+
+    const entreprises = await Entreprise.findAll({
+      where: { entreprise_id: entrepriseIds },
     });
 
-    if (!enqueteFound) {
-      return res.status(404).json({ message: "Enquête non trouvée." });
+    await enquete.addEntreprises(entreprises); // relation many-to-many
+
+    res.status(200).json({ message: "Enquête assignée aux entreprises" });
+  } catch (error) {
+    res.status(500).json({ message: "Erreur serveur", error: error.message });
+  }
+};
+// Clôturer automatiquement les enquêtes expirées (à appeler par cron)
+exports.clotureEnquetesAutomatique = async () => {
+  try {
+    const now = new Date();
+
+    const enquetesExpirees = await Enquete.findAll({
+      where: {
+        dateFin: { [db.Sequelize.Op.lt]: now },
+        statut: "EN_COURS",
+      },
+    });
+
+    for (let enquete of enquetesExpirees) {
+      enquete.statut = "CLOTUREE";
+      await enquete.save();
+      // → ici tu peux déclencher une fonction d'envoi email clôture
     }
 
-    return res.status(200).json(enqueteFound);
+    console.log(
+      `Enquêtes clôturées automatiquement : ${enquetesExpirees.length}`
+    );
   } catch (error) {
-    console.error("Erreur récupération enquête:", error.message);
-    return res.status(500).json({ message: "Erreur serveur." });
+    console.error("Erreur clôture automatique :", error.message);
+  }
+};
+
+
+exports.deleteEnquete = async (req, res) => {
+  try {
+    const id = req.params.id;
+
+    if (!id) {
+      return res.status(400).send({ message: "ID requis." });
+    }
+    const enquete = await Enquete.findByPk(id);
+    if (!enquete)
+      return res.status(404).send({ message: "Enquete non trouvé." });
+
+    await enquete.destroy();
+    res.send({ message: "Enquete supprimé avec succès." });
+  } catch (error) {
+    res.status(500).send({ message: error.message });
   }
 };

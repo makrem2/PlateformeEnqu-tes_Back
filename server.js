@@ -34,6 +34,10 @@ require("./app/routes/auth.routes")(app);
 require("./app/routes/user.routes")(app);
 require("./app/routes/entreprise.routes")(app);
 require("./app/routes/enquete.routes")(app);
+require("./app/routes/question.routes")(app);
+require("./app/routes/reponse.routes")(app);
+
+
 
 const PORT = process.env.PORT || 8080;
 app.listen(PORT, () => {

@@ -1,0 +1,23 @@
+const { authJwt } = require("../middleware");
+const reponseController  = require("../controllers/reponseController");
+const express = require("express");
+
+const router = express.Router();
+
+module.exports = function (app) {
+  app.use(function (req, res, next) {
+    res.header(
+      "Access-Control-Allow-Headers",
+      "x-access-token, Origin, Content-Type, Accept"
+    );
+    next();
+  });
+
+  router.post("/createReponse", reponseController.createReponse);
+  router.get("/getAllReponses", reponseController.getAllReponses);
+  router.get("/getReponseById/:id", reponseController.getReponseById);
+  router.put("/updateReponse/:id", reponseController.updateReponse);
+  router.delete("/deleteReponse/:id", reponseController.deleteReponse);
+
+  app.use("/api/reponses", router);
+};
