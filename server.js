@@ -37,6 +37,9 @@ require("./app/routes/enquete.routes")(app);
 require("./app/routes/question.routes")(app);
 require("./app/routes/reponse.routes")(app);
 
+require("./app/routes/Stats.admin.routes")(app);
+require("./app/routes/Stats.entreprise.routes")(app);
+
 
 
 const PORT = process.env.PORT || 8080;
