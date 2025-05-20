@@ -38,6 +38,8 @@ module.exports = function (app) {
 
   router.get('/getAllReponsesParEntreprise', reponseController.getAllReponsesParEntreprise);
 
+  router.get('/getReponsesParEnqueteParEntreprise/:id', reponseController.getReponsesParEnqueteParEntreprise);
+
 
   app.use("/api/reponses", router);
 };

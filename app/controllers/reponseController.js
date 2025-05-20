@@ -254,13 +254,13 @@ exports.getAllReponsesParEntreprise = async (req, res) => {
         nom: entreprise.nom,
         email: entreprise.email,
       },
-      enquetes: entreprise.enquetes.map((enquete) => ({
+      enquetes: (entreprise.enquetes || []).map((enquete) => ({
         enquete_id: enquete.id,
         titre: enquete.titre,
-        questions: enquete.questions.map((question) => ({
+        questions: (enquete.questions || []).map((question) => ({
           texte: question.texte,
           type: question.type,
-          reponses: question.reponses.map((reponse) => ({
+          reponses: (question.reponses || []).map((reponse) => ({
             valeur: reponse.valeur,
             dateSoumission: reponse.dateSoumission,
             statut: reponse.statut,
@@ -271,8 +271,78 @@ exports.getAllReponsesParEntreprise = async (req, res) => {
 
     return res.status(200).json(result);
   } catch (error) {
+    console.error('❌ Erreur lors de la récupération des réponses:', error);
+    return res
+      .status(500)
+      .json({ message: 'Erreur serveur', error: error.message });
+  }
+};
+
+exports.getReponsesParEnqueteParEntreprise = async (req, res) => {
+  const enqueteId = req.params.id;
+
+  try {
+    const entreprises = await db.entreprise.findAll({
+      include: [
+        {
+          model: db.enquete,
+          as: 'enquetes',
+          where: { enquete_id: enqueteId },
+          through: { attributes: [] },
+          include: [
+            {
+              model: db.question,
+              as: 'questions',
+              include: [
+                {
+                  model: db.reponse,
+                  as: 'reponses',
+                  required: false, // permet d’avoir les questions même sans réponse
+                },
+              ],
+            },
+          ],
+        },
+      ],
+    });
+
+    const result = entreprises.map((entreprise) => {
+      const questions = entreprise.enquetes.flatMap((enquete) =>
+        enquete.questions.map((question) => {
+          // Ne conserver que les réponses de cette entreprise
+          const reponsesEntreprise = question.reponses.filter(
+            (rep) => rep.entreprise_id === entreprise.id
+          );
+
+          console.log("Réponses pertinentes :", reponsesEntreprise);
+
+          return {
+            texte: question.texte,
+            type: question.type,
+            reponses: reponsesEntreprise.map((reponse) => ({
+              valeur: reponse.valeur,
+              dateSoumission: reponse.dateSoumission,
+              statut: reponse.statut,
+            })),
+          };
+        })
+      );
+
+      return {
+        entreprise: {
+          id: entreprise.id,
+          nom: entreprise.nom,
+          email: entreprise.email,
+        },
+        questions,
+      };
+    });
+
+    return res.status(200).json(result);
+  } catch (error) {
     console.error("❌ Erreur lors de la récupération des réponses:", error);
     return res.status(500).json({ message: "Erreur serveur", error: error.message });
   }
 };
+
 

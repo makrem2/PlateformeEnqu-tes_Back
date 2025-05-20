@@ -7,22 +7,17 @@ const {
 } = require("../services/enqueteNotificationService");
 
 const setupEnqueteJobs = () => {
-  // Tous les jours à 20h
-  //cron.schedule("*/1 * * * *", sendRemindersRendezvous);
+  cron.schedule("0 10 * * *", async () => {
+    console.log("[CRON] Envoi des rappels d'enquête à 10h...");
+    await sendEnqueteReminders();
+  });
+
   cron.schedule("*/1 * * * *", async () => {
-    console.log("[CRON] Job démarré : Rappel + Clôture des enquêtes");
-    try {
-      await sendEnqueteReminders();
-      await closeExpiredEnquetes();
-      console.log("[CRON] Job terminé avec succès");
-    } catch (error) {
-      console.error(
-        "[CRON] Erreur lors de l'exécution des jobs :",
-        error.message
-      );
-    }
+    console.log("[CRON] Vérification des enquêtes expirées...");
+    await closeExpiredEnquetes();
   });
 };
+
 const sendEnqueteReminders = async () => {
   try {
     const now = new Date();
@@ -50,12 +45,22 @@ const sendEnqueteReminders = async () => {
 
     for (const enquete of enquetes) {
       for (const entreprise of enquete.entreprises) {
-        const user = entreprise.user;
-        if (user?.email) {
-          await sendEnqueteReminder(user.email, user.username, enquete);
-          console.log(
-            `[CRON] Rappel envoyé à ${user.email} pour enquête "${enquete.titre}"`
-          );
+        const reponses = await db.reponse.findAll({
+          where: {
+            entreprise_id: entreprise.id,
+            enquete_id: enquete.enquete_id,
+          },
+        });
+
+        // Si aucune réponse n’a été donnée, on envoie le rappel
+        if (reponses.length === 0) {
+          const user = entreprise.user;
+          if (user?.email) {
+            await sendEnqueteReminder(user.email, user.username, enquete);
+            console.log(
+              `[CRON] Rappel envoyé à ${user.email} pour enquête "${enquete.titre}"`
+            );
+          }
         }
       }
     }
@@ -63,6 +68,7 @@ const sendEnqueteReminders = async () => {
     console.error("[CRON] Erreur dans sendEnqueteReminders :", error.message);
   }
 };
+
 const closeExpiredEnquetes = async () => {
   try {
     const now = new Date();
@@ -79,7 +85,12 @@ const closeExpiredEnquetes = async () => {
           model: db.entreprise,
           as: "entreprises",
           through: { attributes: [] },
-          include: [{ model: db.user, attributes: ["email", "username"] }],
+          include: [
+            {
+              model: db.user,
+              attributes: ["email", "username"],
+            },
+          ],
         },
       ],
     });
@@ -87,7 +98,6 @@ const closeExpiredEnquetes = async () => {
     for (const enquete of enquetes) {
       enquete.statut = "CLOTUREE";
       await enquete.save();
-
       for (const entreprise of enquete.entreprises) {
         const user = entreprise.user;
         if (user?.email) {
@@ -98,8 +108,13 @@ const closeExpiredEnquetes = async () => {
         }
       }
     }
+
+    if (enquetes.length === 0) {
+      console.log("[CRON] Aucune enquête à clôturer pour l'instant.");
+    }
   } catch (error) {
     console.error("[CRON] Erreur dans closeExpiredEnquetes :", error.message);
   }
 };
+
 module.exports = setupEnqueteJobs;
