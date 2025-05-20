@@ -8,7 +8,8 @@ const {
 
 const setupEnqueteJobs = () => {
   // Tous les jours à 20h
-  cron.schedule("0 20 * * *", async () => {
+  //cron.schedule("*/1 * * * *", sendRemindersRendezvous);
+  cron.schedule("*/1 * * * *", async () => {
     console.log("[CRON] Job démarré : Rappel + Clôture des enquêtes");
     try {
       await sendEnqueteReminders();

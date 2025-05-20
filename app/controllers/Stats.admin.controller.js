@@ -9,9 +9,20 @@ exports.getAdminStats = async (req, res) => {
   try {
     const totalEnquetes = await Enquete.count();
     const totalEntreprises = await Entreprise.count();
-    const totalReponses = await Reponse.count();
 
-    // Pourcentage de réponses = (nb réponses / nb total enquêtes * nb entreprises) * 100
+    // Nombre de réponses = nombre de couples uniques (enquete_id, entreprise_id)
+    const totalReponses = await Reponse.count({
+      distinct: true,
+      col: "enquete_id",
+      include: [
+        {
+          model: Enquete,
+          attributes: [],
+        },
+      ],
+      // On peut aussi le faire plus précisément avec une requête brute si besoin
+    });
+
     const totalEnquetesEntreprises = totalEnquetes * totalEntreprises;
     const tauxReponse =
       totalEnquetesEntreprises > 0
@@ -57,7 +68,7 @@ exports.getTotalEnquetesParEntreprise = async (req, res) => {
 
 exports.getTauxReponseParEntreprise = async (req, res) => {
   try {
-    // 1. Total enquêtes par entreprise (many-to-many)
+    // Étape 1 : Total des enquêtes par entreprise (many-to-many)
     const totalEnquetes = await Entreprise.findAll({
       attributes: ["id", [fn("COUNT", col("Enquetes.enquete_id")), "nbEnquetes"]],
       include: [
@@ -71,38 +82,41 @@ exports.getTauxReponseParEntreprise = async (req, res) => {
       raw: true,
     });
 
-    // 2. Total réponses par entreprise (via Enquete → table associative)
-    const totalReponses = await Entreprise.findAll({
-      attributes: [
-        "id",
-        [fn("COUNT", col("Enquetes->Reponses.reponse_id")), "nbReponses"],
-      ],
-      include: [
-        {
-          model: Enquete,
-          attributes: [],
-          through: { attributes: [] },
-          include: [
-            {
-              model: Reponse,
-              attributes: [],
-            },
-          ],
-        },
-      ],
-      group: ["id"],
+    // Étape 2 : Récupérer toutes les réponses avec entreprise_id et enquete_id
+    const reponses = await Reponse.findAll({
+      attributes: ["entreprise_id", "enquete_id"],
+      group: ["entreprise_id", "enquete_id"],
       raw: true,
     });
 
-    // 3. Calcul du taux
+    // Transformer en Map { entrepriseId -> count unique (enquete_id) }
+    const reponsesParEntreprise = {};
+    reponses.forEach((rep) => {
+      const id = rep.entreprise_id;
+      if (!reponsesParEntreprise[id]) {
+        reponsesParEntreprise[id] = new Set();
+      }
+      reponsesParEntreprise[id].add(rep.enquete_id);
+    });
+
+    // Étape 3 : Récupérer noms des entreprises (pour affichage)
+    const entreprises = await Entreprise.findAll({
+      attributes: ["id", "nom"],
+      raw: true,
+    });
+
+    // Étape 4 : Combiner tout
     const result = totalEnquetes.map((e) => {
-      const matching = totalReponses.find((r) => r.id === e.id);
-      const nbReponses = matching ? parseInt(matching.nbReponses) : 0;
       const nbEnquetes = parseInt(e.nbEnquetes);
+      const nbReponses = reponsesParEntreprise[e.id]?.size || 0;
       const taux = nbEnquetes > 0 ? (nbReponses / nbEnquetes) * 100 : 0;
+
+      const nomEntreprise =
+        entreprises.find((ent) => ent.id === e.id)?.nom || "";
 
       return {
         entrepriseId: e.id,
+        nom: nomEntreprise,
         tauxReponse: Math.round(taux * 100) / 100,
       };
     });

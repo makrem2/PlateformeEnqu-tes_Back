@@ -1,5 +1,5 @@
 const db = require("../models");
-const { Op } = require("sequelize");
+const { sequelize, fn, col, literal } = require("sequelize");
 
 const Reponse = db.reponse;
 const Enquete = db.enquete;
@@ -28,22 +28,32 @@ exports.getEntrepriseStats = async (req, res) => {
 };
 
 exports.getReponsesParType = async (req, res) => {
-  const entrepriseId = req.params.entrepriseId;
-
   try {
+    const entrepriseId = req.params.entrepriseId;
+
     const results = await Reponse.findAll({
       attributes: [
-        [sequelize.col("Enquete.type"), "type"],
-        [sequelize.fn("COUNT", sequelize.col("Reponse.id")), "total"],
+        [col("Enquete.type"), "type"],
+        // Count distinct pairs (enquete_id, entreprise_id)
+        [
+          fn(
+            "COUNT",
+            literal(
+              'DISTINCT CONCAT(reponse.enquete_id, "-", reponse.entreprise_id)'
+            )
+          ),
+          "totalEntreprisesRepondues",
+        ],
       ],
       include: [
         {
           model: Enquete,
           attributes: [],
-          where: { entrepriseId },
         },
       ],
+      where: entrepriseId ? { entreprise_id: entrepriseId } : undefined,
       group: ["Enquete.type"],
+      raw: true,
     });
 
     res.status(200).json(results);
@@ -56,24 +66,47 @@ exports.getReponsesParType = async (req, res) => {
 exports.getReponsesMensuelles = async (req, res) => {
   const entrepriseId = req.params.entrepriseId;
 
+  const moisNoms = [
+    "Janvier",
+    "Février",
+    "Mars",
+    "Avril",
+    "Mai",
+    "Juin",
+    "Juillet",
+    "Août",
+    "Septembre",
+    "Octobre",
+    "Novembre",
+    "Décembre",
+  ];
+
   try {
     const results = await Reponse.findAll({
       attributes: [
-        [sequelize.fn("MONTH", sequelize.col("Reponse.createdAt")), "mois"],
-        [sequelize.fn("COUNT", sequelize.col("Reponse.id")), "total"],
+        [fn("MONTH", col("Reponse.createdAt")), "mois"],
+        [fn("COUNT", fn("DISTINCT", col("Reponse.enquete_id"))), "total"],
       ],
+      where: {
+        entreprise_id: entrepriseId,
+      },
       include: [
         {
           model: Enquete,
           attributes: [],
-          where: { entrepriseId },
         },
       ],
       group: ["mois"],
-      order: [[sequelize.literal("mois"), "ASC"]],
+      order: [[literal("mois"), "ASC"]],
+      raw: true,
     });
 
-    res.status(200).json(results);
+    const resultsAvecNomMois = results.map((item) => ({
+      mois: moisNoms[item.mois - 1],
+      total: item.total,
+    }));
+
+    res.status(200).json(resultsAvecNomMois);
   } catch (error) {
     console.error("Erreur getReponsesMensuelles:", error);
     res.status(500).json({ error: "Erreur serveur" });

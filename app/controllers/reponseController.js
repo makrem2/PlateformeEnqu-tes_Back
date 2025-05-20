@@ -222,3 +222,57 @@ exports.getAllEnquetesRepondues = async (req, res) => {
     res.status(500).json({ message: "Erreur serveur" });
   }
 };
+
+
+exports.getAllReponsesParEntreprise = async (req, res) => {
+  try {
+    const entreprises = await db.entreprise.findAll({
+      include: [
+        {
+          model: db.enquete,
+          as: 'enquetes',
+          through: { attributes: [] },
+          include: [
+            {
+              model: db.question,
+              as: 'questions',
+              include: [
+                {
+                  model: db.reponse,
+                  as: 'reponses',
+                },
+              ],
+            },
+          ],
+        },
+      ],
+    });
+
+    const result = entreprises.map((entreprise) => ({
+      entreprise: {
+        id: entreprise.id,
+        nom: entreprise.nom,
+        email: entreprise.email,
+      },
+      enquetes: entreprise.enquetes.map((enquete) => ({
+        enquete_id: enquete.id,
+        titre: enquete.titre,
+        questions: enquete.questions.map((question) => ({
+          texte: question.texte,
+          type: question.type,
+          reponses: question.reponses.map((reponse) => ({
+            valeur: reponse.valeur,
+            dateSoumission: reponse.dateSoumission,
+            statut: reponse.statut,
+          })),
+        })),
+      })),
+    }));
+
+    return res.status(200).json(result);
+  } catch (error) {
+    console.error("❌ Erreur lors de la récupération des réponses:", error);
+    return res.status(500).json({ message: "Erreur serveur", error: error.message });
+  }
+};
+

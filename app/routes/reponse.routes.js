@@ -36,5 +36,8 @@ module.exports = function (app) {
   router.get('/repondues/:entrepriseId', reponseController.getAllEnquetesRepondues);
 
 
+  router.get('/getAllReponsesParEntreprise', reponseController.getAllReponsesParEntreprise);
+
+
   app.use("/api/reponses", router);
 };
